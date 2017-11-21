@@ -13,8 +13,6 @@ import javax.crypto.spec.PBEKeySpec
 import java.security.spec.KeySpec
 import javax.crypto.SecretKeyFactory
 
-
-
 fun String.toByteArray(encoding: String) : ByteArray{
     return when(encoding) {
         "hex" -> Hex.decodeHex(this.toCharArray())
@@ -166,7 +164,7 @@ fun chal6(){
     val answer = guesses.map { (ksize, _) ->
         var blox = mutableMapOf<Int, ArrayList<Byte>>()
         (0..(ksize - 1)).forEach { blox.put(it, ArrayList(0)) }
-        inputBytes
+            inputBytes
                 .withIndex()
                 .groupBy { it.index / ksize }
                 .map { it.value.map { it.value } }
@@ -203,6 +201,22 @@ fun chal7() {
     println(String(cipher.doFinal(inp)).contains("I'm back and I'm ringin' the bell"))
 }
 
+fun detectECB(test : ByteArray) : Boolean {
+    var ans = false
+    val blox =
+        test
+        .withIndex()
+        .groupBy { it.index / 16 }
+        .map { it.value.map{ it.value } }
+
+    blox.forEachIndexed { j,outerBlock ->
+        blox.forEachIndexed { k, innerBlock ->
+            if(outerBlock == innerBlock && j != k) ans = true
+        }
+    }
+    return ans
+}
+
 fun chal8() {
     val texts =
         File("set1chal8.txt")
@@ -211,20 +225,7 @@ fun chal8() {
         .map { it.toByteArray("hex") }
 
     var ans = -1
-    texts.forEachIndexed { i, txt ->
-        val blox =
-            txt
-            .withIndex()
-            .groupBy { it.index / 16 }
-            .map { it.value.map{ it.value } }
-
-
-        blox.forEachIndexed { j,outerBlock ->
-            blox.forEachIndexed { k, innerBlock ->
-                if(outerBlock == innerBlock && j != k && ans != i) ans = i
-            }
-        }
-    }
+    texts.forEachIndexed { i, txt -> if(detectECB(txt) && ans != i) ans = i }
     println(ans)
 }
 
