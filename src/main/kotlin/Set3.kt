@@ -4,7 +4,7 @@ import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
 import kotlin.experimental.xor
 
-fun buildCookie() : Triple<ByteArray, ByteArray, ByteArray> {
+fun buildCookie(): Triple<ByteArray, ByteArray, ByteArray> {
     val idx = randbtw(0,9)
     val stringz = listOf(
             "MDAwMDAwTm93IHRoYXQgdGhlIHBhcnR5IGlzIGp1bXBpbmc=",
@@ -28,7 +28,7 @@ fun buildCookie() : Triple<ByteArray, ByteArray, ByteArray> {
     return Triple(initVector, encryptedSession, key)
 }
 
-fun validateCookie(cookie : ByteArray, initV : ByteArray, key : ByteArray) : Boolean {
+fun validateCookie(cookie: ByteArray, initV: ByteArray, key: ByteArray): Boolean {
     val cipher = CBC(initV)
     val session = cipher.decrypt(cookie, key)
     try{
@@ -94,7 +94,7 @@ fun chal17(){
     println(String(cookie.unpad()))
 }
 
-class CTR(val key : ByteArray){
+class CTR(val key: ByteArray){
     private val blocksize = 16
     private val nonce = ByteArray(blocksize/2, { 0.toByte() })
     var currentBlock = ByteArray(0)
@@ -136,50 +136,47 @@ fun chal18(){
 }
 
 fun chal19(){
-    val texts =
-            File("set3chal19.txt")
-                    .readText()
-                    .split("\n")
-                    .filter { it.length > 1}
-                    .map { it.toByteArray("base64") }
+    val texts = File("set3chal19.txt")
+        .readText()
+        .split("\n")
+        .filter { it.length > 1}
+        .map { it.toByteArray("base64") }
 
-    val encrypted =
-            texts
-                    .map { ctx ->
-                        val cipher = CTR("YELLOW SUBMARINE".toByteArray("text"))
-                        val list = ctx.map { cipher.step(it) }
-                        ByteArray(list.size, { list[it] })
-                    }
+    val encrypted = texts.map { ctx ->
+        val cipher = CTR("YELLOW SUBMARINE".toByteArray("text"))
+        val list = ctx.map { cipher.step(it) }
+        ByteArray(list.size, { list[it] })
+    }
 
     val maxlen = texts.map { it.size }.max()
-    val kstream =
-            (0..maxlen!!-1).map { index ->
-                val bytesAtIndex = encrypted.map {
-                    if(it.size > index)
-                        it[index]
-                    else
-                        null
-                }.filter { it != null }
-
-                (0..255).maxBy { guess ->
-                    val xored = bytesAtIndex.map { it!!.xor(guess.toByte()) }
-                    engScore(String(ByteArray(xored.size, { xored[it] } )))
-                }
+    val kstream = (0..maxlen!!-1).map { index ->
+        val bytesAtIndex = encrypted
+            .map {
+                if(it.size > index)
+                it[index]
+                else
+                null
             }
+            .filter { it != null }
 
-    val d = encrypted[20].mapIndexed { i,b -> b.xor(kstream[i]!!.toByte()) }
+        (0..255).maxBy { guess ->
+            val xored = bytesAtIndex.map { it!!.xor(guess.toByte()) }
+            engScore(String(ByteArray(xored.size, { xored[it] } )))
+        }
+    }
+
+    val d = encrypted[20].mapIndexed { i,b -> b xor kstream[i]!!.toByte() }
     println(
-            String( ByteArray(d.size, { d[it] }) )
+        String( ByteArray(d.size, { d[it] }) )
     )
 }
 
 fun chal20(){
-    val texts =
-            File("set3chal19.txt")
-                    .readText()
-                    .split("\n")
-                    .filter { it.length > 1}
-                    .map { it.toByteArray("base64") }
+    val texts = File("set3chal19.txt")
+        .readText()
+        .split("\n")
+        .filter { it.length > 1}
+        .map { it.toByteArray("base64") }
 
     val minlen = texts.map { it.size }.min()
     val concat = texts.map { it.take(minlen!!) }.flatten()
@@ -199,8 +196,7 @@ class MT19937(seed: Long, var mt: MutableList<Long> = LongRange(0, 623).toMutabl
         mt[0] = seed
         (1..lastNum).forEach {
             val prev = mt[it-1]
-            mt[it] =
-                (1812433253 * prev) xor (prev shr 30 + it) and bitmask1
+            mt[it] = (1812433253 * prev) xor (prev shr 30 + it) and bitmask1
         }
 
         (0..lastNum).forEach {
@@ -226,7 +222,7 @@ class MT19937(seed: Long, var mt: MutableList<Long> = LongRange(0, 623).toMutabl
     }
 
     fun next(): Long {
-        var y = temper(mt[index])
+        val y = temper(mt[index])
         index = (index + 1).rem(statesize)
         return y
     }

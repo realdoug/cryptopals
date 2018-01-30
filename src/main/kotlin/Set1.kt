@@ -33,21 +33,21 @@ fun chal2(){
 
     val retBytes = ByteArray(inpBytes.size);
     for((idx, b) in inpBytes.withIndex()){
-        retBytes.set(idx, b.xor(cmpBytes[idx]))
+        retBytes.set(idx, b xor cmpBytes[idx])
     }
 
     println(Hex.encodeHexString(retBytes) == res)
 }
 
 fun engScore(input : String) : Int {
-    val scores : List<Int> = input.toCharArray().map {
-        var score : Int = 0
+    val scores: List<Int> = input.toCharArray().map {
+        var score: Int = 0
         val ch = it.toString().toLowerCase()
-        if(ch == " " || ch == "e" || ch == "t" || ch == "a" ||
-                ch == "o" || ch == "i" || ch == "n" || ch == "s" ||
-                ch == "h" || ch == "r" || ch == "d" || ch == "l" ||
-                ch == "u"
-                ) score++
+        if( ch == " " || ch == "e" || ch == "t" || ch == "a" ||
+            ch == "o" || ch == "i" || ch == "n" || ch == "s" ||
+            ch == "h" || ch == "r" || ch == "d" || ch == "l" ||
+            ch == "u"
+        ) score++
         //ETAOIN SHRDLU
         score
     }
@@ -60,9 +60,9 @@ fun singleCharXOR(msgBytes : ByteArray) : Pair<String, Byte>{
     var key = 0.toByte()
     (0..255).map {
         val asciiChar = it.toChar()
-        var msg = msgBytes.map { c ->
-            asciiChar.toByte().xor(c).toChar()
-        }.joinToString("")
+        var msg = msgBytes
+            .map { c -> (asciiChar.toByte() xor c).toChar() }
+            .joinToString("")
         var _score = engScore(msg)
         if(_score > score){
             score = _score
@@ -97,25 +97,23 @@ fun chal5(){
     val ans = "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f"
     val key = "ICE".toList()
 
-    val outputBytes =
-            with(input) {
-                toCharArray()
-                map { it.toByte() }
-                        .mapIndexed { i, ch ->
-                            val compare = key[i.rem(3)].toByte()
-                            ch.xor(compare)
-                        }
-            }
-    val encoded =
-            Hex.encodeHexString(
-                    ByteArray(outputBytes.size, { outputBytes[it] }))
+    val outputBytes = input
+        .toCharArray()
+        .map { it.toByte() }
+        .mapIndexed { i, ch ->
+            val compare = key[i.rem(3)].toByte()
+            ch xor compare
+        }
+    val encoded = Hex.encodeHexString(
+        ByteArray(outputBytes.size, { outputBytes[it] })
+    )
     println(ans == encoded)
 }
 
 fun hammingDistance(input : ByteArray, compare : ByteArray) : Int {
     var sum = 0
     input.zip(compare) { a, b ->
-        val diff = a.xor(b).toInt()
+        val diff = (a xor b).toInt()
         (0..7).forEach { it : Int ->
             sum += (diff shr it) and 1
         }
@@ -134,55 +132,56 @@ fun repeatingKeyXor(ksize : Int, ciphertext : ByteArray) : Pair<String, Int> {
     var blox = mutableMapOf<Int, ArrayList<Byte>>()
     (0..(ksize - 1)).forEach { blox.put(it, ArrayList(0)) }
     ciphertext
-            .withIndex()
-            .groupBy { it.index / ksize }
-            .map { it.value.map { it.value } }
-            .forEach { chunk ->
-                chunk.forEachIndexed { i, b -> blox[i]?.add(b) }
-            }
+        .withIndex()
+        .groupBy { it.index / ksize }
+        .map { it.value.map { it.value } }
+        .forEach { chunk ->
+            chunk.forEachIndexed { i, b -> blox[i]?.add(b) }
+        }
 
     val key = blox.entries.map { (_, bytes) ->
         val bArray = ByteArray(bytes.size, { bytes[it] })
         singleCharXOR(bArray).second
     }
 
-    val output = ciphertext.mapIndexed { i, inputByte ->
-        val compare = key[i.rem(ksize)]
-        inputByte.xor(compare).toChar()
-    }.joinToString("")
+    val output = ciphertext
+        .mapIndexed { i, inputByte ->
+            val compare = key[i.rem(ksize)]
+            (inputByte xor compare).toChar()
+        }
+        .joinToString("")
 
     return Pair(output, engScore(output))
 }
 
 fun chal6(){
-    val inputBytes =
-            File("set1chal6.txt").readText().toByteArray("base64")
+    val inputBytes = File("set1chal6.txt")
+        .readText()
+        .toByteArray("base64")
 
-    val guesses = (2..40).map { ksize ->
-        val chunks =
-                inputBytes
-                        .withIndex()
-                        .groupBy { it.index / ksize }
-                        .map { it.value.map { it.value } }
+    val guesses = (2..40)
+        .map { ksize ->
+            val chunks = inputBytes
+                .withIndex()
+                .groupBy { it.index / ksize }
+                .map { it.value.map { it.value } }
 
-        val scores = (0..6).map { num ->
-            val chunk1 = ByteArray(chunks[num].size, { chunks[num][it] })
-            val chunk2 = ByteArray(chunks[num].size, { chunks[num+1][it] })
+            val scores = (0..6).map { num ->
+                val chunk1 = ByteArray(chunks[num].size, { chunks[num][it] })
+                val chunk2 = ByteArray(chunks[num].size, { chunks[num+1][it] })
 
-            hammingDistance(chunk1, chunk2)
+              hammingDistance(chunk1, chunk2)
+            }
+            val dist = scores.sum().div(ksize.toFloat())
+          Pair(ksize, dist)
         }
+        .sortedBy { it.second }
+        .take(5)
 
-        val dist = scores.sum().div(ksize.toFloat())
-        Pair(ksize, dist)
-    }
-            .sortedBy { it.second }
-            .take(5)
-
-    val answer =
-            guesses
-                    .map { (ksize, _) -> repeatingKeyXor(ksize, inputBytes) }
-                    .sortedByDescending { it.second }
-                    .first().first
+    val answer = guesses
+        .map { (ksize, _) -> repeatingKeyXor(ksize, inputBytes) }
+        .sortedByDescending { it.second }
+        .first().first
 
     println(answer.contains("I'm back and I'm ringin' the bell"))
 }
@@ -200,11 +199,10 @@ fun chal7() {
 
 fun detectECB(test : ByteArray) : Boolean {
     var ans = false
-    val blox =
-            test
-                    .withIndex()
-                    .groupBy { it.index / 16 }
-                    .map { it.value.map{ it.value } }
+    val blox = test
+        .withIndex()
+        .groupBy { it.index / 16 }
+        .map { it.value.map{ it.value } }
 
     blox.forEachIndexed { j,outerBlock ->
         blox.forEachIndexed { k, innerBlock ->
@@ -215,11 +213,10 @@ fun detectECB(test : ByteArray) : Boolean {
 }
 
 fun chal8() {
-    val texts =
-            File("set1chal8.txt")
-                    .readText()
-                    .split("\n")
-                    .map { it.toByteArray("hex") }
+    val texts = File("set1chal8.txt")
+        .readText()
+        .split("\n")
+        .map { it.toByteArray("hex") }
 
     var ans = -1
     texts.forEachIndexed { i, txt -> if(detectECB(txt) && ans != i) ans = i }

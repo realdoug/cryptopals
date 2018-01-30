@@ -8,55 +8,54 @@ val unknown = "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpc
 
 class IllegalPaddingException(override var message:String): Exception()
 
-fun validatePKCS7(input : ByteArray) : Boolean {
+fun validatePKCS7(input: ByteArray) : Boolean {
     val padSize = input.last().toInt()
 
     input
-            .reversed()
-            .take(padSize)
-            .forEach {
-                if(it.toInt() != padSize)
-                    throw IllegalPaddingException("Invalid PKCS7 Padding")
-            }
+        .reversed()
+        .take(padSize)
+        .forEach {
+            if(it.toInt() != padSize)
+                throw IllegalPaddingException("Invalid PKCS7 Padding")
+        }
 
     return true
 }
 
-fun ByteArray.pad(num : Int) : ByteArray {
+fun ByteArray.pad(num: Int) : ByteArray {
     val diff = num - this.size.rem(num)
     val padding = ByteArray(diff, { diff.toByte() })
     return this + padding
 }
 
-fun ByteArray.unpad() : ByteArray {
+fun ByteArray.unpad(): ByteArray {
     val padNum = this[this.size-1].toInt()
     val unpadded = this.take(this.size-padNum)
     return ByteArray(unpadded.size, { unpadded[it] })
 }
 
-class CBC(_iv : ByteArray) {
+class CBC(_iv: ByteArray) {
     private val blocksize = 16
     val cipher = Cipher.getInstance("AES/ECB/NoPadding")
     val iv = _iv
 
     fun _blox(inp : ByteArray) : List<ByteArray> {
-        return (
-                inp
-                        .withIndex()
-                        .groupBy { it.index / blocksize }
-                        .map { it.value.map { it.value } }
-                        .map { bList -> ByteArray(bList.size, { bList[it] }) }
-                )
+        return (inp
+            .withIndex()
+            .groupBy { it.index / blocksize }
+            .map { it.value.map { it.value } }
+            .map { bList -> ByteArray(bList.size, { bList[it] }) }
+        )
     }
 
-    fun encrypt(txt : ByteArray, key : ByteArray) : ByteArray {
+    fun encrypt(txt: ByteArray, key: ByteArray): ByteArray {
         cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"))
 
         val blox = _blox(txt)
         var prev = iv
         var retVal = ByteArray(0)
         blox.forEach { block ->
-            val xoredBytes = block.mapIndexed { i,b -> b.xor(prev[i]) }
+            val xoredBytes = block.mapIndexed { i,b -> b xor prev[i] }
             val newBlock = cipher.doFinal( ByteArray(xoredBytes.size, { xoredBytes[it] }) )
             retVal += newBlock
             prev = newBlock
@@ -65,17 +64,16 @@ class CBC(_iv : ByteArray) {
         return retVal
     }
 
-    fun decrypt(txt : ByteArray, key : ByteArray) : ByteArray {
+    fun decrypt(txt: ByteArray, key: ByteArray): ByteArray {
         cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"))
 
         val blox = _blox(txt)
         var prev = iv
         var retVal = ByteArray(0)
         blox.forEach { block ->
-            val newBlock =
-                    cipher
-                            .doFinal(block)
-                            .mapIndexed { i,b -> b.xor(prev[i]) }
+            val newBlock = cipher
+                .doFinal(block)
+                .mapIndexed { i,b -> b xor prev[i] }
 
             retVal += newBlock
             prev = block
@@ -104,15 +102,15 @@ fun chal10(){
     println(String(dec).contains("I'm back and I'm ring") && testVal == String(c.decrypt(enc, key)))
 }
 
-fun randbytes(count : Int) : ByteArray {
+fun randbytes(count: Int): ByteArray {
     return ByteArray(count, { randbtw(0,255).toByte() })
 }
 
-fun randbtw(start : Int, end : Int) : Int {
+fun randbtw(start: Int, end: Int): Int {
     return SecureRandom().nextInt(end - start) + start
 }
 
-fun encryptionOracle(input : ByteArray) : Pair<Int,ByteArray> {
+fun encryptionOracle(input: ByteArray): Pair<Int,ByteArray> {
     val k = randbytes(16)
     val prepend = randbytes( randbtw(5,10) )
     val append  = randbytes( randbtw(5,10) )
@@ -133,11 +131,10 @@ fun encryptionOracle(input : ByteArray) : Pair<Int,ByteArray> {
 fun chal11(){
     val (mode, output) = encryptionOracle("YELLOW SUBMARINEYELLOW SUBMARINE".toByteArray("text"))
     val prediction = if(detectECB(output)) 1 else 0
-    println(prediction === mode)
+    println(prediction == mode)
 }
 
-class NewOracle(unknown : ByteArray, keyInput : ByteArray = randbytes(16), randPrefix : Boolean = false) {
-    val unknown = unknown
+class NewOracle(val unknown: ByteArray, keyInput: ByteArray = randbytes(16), randPrefix: Boolean = false) {
     val key = SecretKeySpec(keyInput, "AES")
     val prefix = if(randPrefix) randbytes(randbtw(16, 32)) else ByteArray(0)
 
@@ -154,27 +151,28 @@ class NewOracle(unknown : ByteArray, keyInput : ByteArray = randbytes(16), randP
         return cipher.doFinal(input)
     }
 
-    fun createProfile(email : String) : ByteArray {
+    fun createProfile(email: String): ByteArray {
         if(email.contains("&") || email.contains("="))
             throw IllegalArgumentException("Illegal characters in email")
 
         val profile =
                 mapOf(
-                        "email" to email,
-                        "uid" to 10,
-                        "role" to "user")
-                        .map {
-                            val (k, v) = it
-                            "$k=$v"
-                        }
-                        .joinToString("&")
-                        .toByteArray("text")
+                    "email" to email,
+                    "uid" to 10,
+                    "role" to "user"
+                )
+                .map {
+                    val (k, v) = it
+                    "$k=$v"
+                }
+                .joinToString("&")
+                .toByteArray("text")
 
         return this.encrypt(profile)
     }
 }
 
-fun findBlockSize(oracle : NewOracle) : Int {
+fun findBlockSize(oracle: NewOracle): Int {
     var compareEncrypted = oracle.encrypt(ByteArray(0))
     var i = 1
     var c1 = 0
@@ -187,7 +185,7 @@ fun findBlockSize(oracle : NewOracle) : Int {
     }
 }
 
-fun crackAES(or : NewOracle, blocksize : Int, prefixSize : Int) : ByteArray {
+fun crackAES(or: NewOracle, blocksize: Int, prefixSize: Int): ByteArray {
     var unknownDecrypted = ByteArray(0)
     val pad = blocksize - prefixSize.rem(blocksize)
 
@@ -196,17 +194,16 @@ fun crackAES(or : NewOracle, blocksize : Int, prefixSize : Int) : ByteArray {
         val attack = ByteArray(attackSize, { 0.toByte() })
         val known = attack + unknownDecrypted
 
-        val answerMap =
-                (0..255).associate {
-                    val b = it.toByte()
-                    val guess = ByteArray(1, { b })
-                    val ans =
-                            or
-                                    .encrypt(known+guess)
-                                    .drop(prefixSize)
-                                    .take(known.size+1)
-                    ans to b
-                }
+        val answerMap = (0..255)
+            .associate {
+                val b = it.toByte()
+                val guess = ByteArray(1, { b })
+                val ans = or
+                    .encrypt(known+guess)
+                    .drop(prefixSize)
+                    .take(known.size+1)
+                ans to b
+            }
 
         val output = or.encrypt(attack).drop(prefixSize)
         val k = output.take(known.size+1)
@@ -229,7 +226,7 @@ fun chal12(){
     println(String(unknownDecrypted) == String(unknown))
 }
 
-fun str2map(qstr : String) : Map<String,String> {
+fun str2map(qstr: String): Map<String,String> {
     return (
             qstr
                     .split("&")
@@ -270,15 +267,11 @@ fun chal14() {
     var prefixSize = 0
     for(mod in (0..blocksize)) {
         val attack = ByteArray(blocksize*4+mod, { 0.toByte() })
-//        println(attack.size)
         val result = oracle.encrypt(attack)
-//        println(result.size)
-        val blox =
-                result
-                        .withIndex()
-                        .groupBy { it.index / blocksize }
-                        .map { it.value.map { it.value } }
-//        println(blox.size)
+        val blox = result
+            .withIndex()
+            .groupBy { it.index / blocksize }
+            .map { it.value.map { it.value } }
 
 
         var done = false
@@ -292,7 +285,6 @@ fun chal14() {
             i++
         }
         if(done) break
-
     }
 
     val answer = crackAES(oracle, blocksize, prefixSize)
