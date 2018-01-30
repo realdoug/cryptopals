@@ -1,8 +1,5 @@
 import java.io.File
-import org.apache.commons.codec.binary.*
-import java.nio.charset.Charset
 import java.security.SecureRandom
-import java.util.*
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
 import kotlin.experimental.xor
@@ -13,6 +10,7 @@ class IllegalPaddingException(override var message:String): Exception()
 
 fun validatePKCS7(input : ByteArray) : Boolean {
     val padSize = input.last().toInt()
+
     input
             .reversed()
             .take(padSize)
@@ -21,29 +19,34 @@ fun validatePKCS7(input : ByteArray) : Boolean {
                     throw IllegalPaddingException("Invalid PKCS7 Padding")
             }
 
-
     return true
 }
 
 fun ByteArray.pad(num : Int) : ByteArray {
     val diff = num - this.size.rem(num)
-    var retVal = MutableList<Byte>((this.size+diff), { 0.toByte() } )
-    this.forEachIndexed { i,b -> retVal[i] = b }
-    return ByteArray(retVal.size, { retVal[it] })
+    val padding = ByteArray(diff, { diff.toByte() })
+    return this + padding
 }
 
-class CBC(val iv : ByteArray) {
+fun ByteArray.unpad() : ByteArray {
+    val padNum = this[this.size-1].toInt()
+    val unpadded = this.take(this.size-padNum)
+    return ByteArray(unpadded.size, { unpadded[it] })
+}
+
+class CBC(_iv : ByteArray) {
     private val blocksize = 16
     val cipher = Cipher.getInstance("AES/ECB/NoPadding")
+    val iv = _iv
 
     fun _blox(inp : ByteArray) : List<ByteArray> {
         return (
-            inp
-            .withIndex()
-            .groupBy { it.index / blocksize }
-            .map { it.value.map { it.value } }
-            .map { bList -> ByteArray(bList.size, { bList[it] }) }
-        )
+                inp
+                        .withIndex()
+                        .groupBy { it.index / blocksize }
+                        .map { it.value.map { it.value } }
+                        .map { bList -> ByteArray(bList.size, { bList[it] }) }
+                )
     }
 
     fun encrypt(txt : ByteArray, key : ByteArray) : ByteArray {
@@ -70,9 +73,9 @@ class CBC(val iv : ByteArray) {
         var retVal = ByteArray(0)
         blox.forEach { block ->
             val newBlock =
-                cipher
-                .doFinal(block)
-                .mapIndexed { i,b -> b.xor(prev[i]) }
+                    cipher
+                            .doFinal(block)
+                            .mapIndexed { i,b -> b.xor(prev[i]) }
 
             retVal += newBlock
             prev = block
@@ -156,16 +159,16 @@ class NewOracle(unknown : ByteArray, keyInput : ByteArray = randbytes(16), randP
             throw IllegalArgumentException("Illegal characters in email")
 
         val profile =
-            mapOf(
-            "email" to email,
-                    "uid" to 10,
-                    "role" to "user")
-            .map {
-                val (k, v) = it
-                "$k=$v"
-            }
-            .joinToString("&")
-            .toByteArray("text")
+                mapOf(
+                        "email" to email,
+                        "uid" to 10,
+                        "role" to "user")
+                        .map {
+                            val (k, v) = it
+                            "$k=$v"
+                        }
+                        .joinToString("&")
+                        .toByteArray("text")
 
         return this.encrypt(profile)
     }
@@ -198,10 +201,10 @@ fun crackAES(or : NewOracle, blocksize : Int, prefixSize : Int) : ByteArray {
                     val b = it.toByte()
                     val guess = ByteArray(1, { b })
                     val ans =
-                        or
-                        .encrypt(known+guess)
-                        .drop(prefixSize)
-                        .take(known.size+1)
+                            or
+                                    .encrypt(known+guess)
+                                    .drop(prefixSize)
+                                    .take(known.size+1)
                     ans to b
                 }
 
@@ -228,15 +231,15 @@ fun chal12(){
 
 fun str2map(qstr : String) : Map<String,String> {
     return (
-        qstr
-        .split("&")
-        .associate {
-            val kval = it.split("=")
-            if(kval.size == 2)
-                kval[0] to kval[1]
-            else
-                "<NONE>" to "<NONE>"
-        })
+            qstr
+                    .split("&")
+                    .associate {
+                        val kval = it.split("=")
+                        if(kval.size == 2)
+                            kval[0] to kval[1]
+                        else
+                            "<NONE>" to "<NONE>"
+                    })
 }
 
 fun chal13() {
@@ -271,10 +274,10 @@ fun chal14() {
         val result = oracle.encrypt(attack)
 //        println(result.size)
         val blox =
-            result
-            .withIndex()
-            .groupBy { it.index / blocksize }
-            .map { it.value.map { it.value } }
+                result
+                        .withIndex()
+                        .groupBy { it.index / blocksize }
+                        .map { it.value.map { it.value } }
 //        println(blox.size)
 
 
